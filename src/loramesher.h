@@ -330,6 +330,10 @@ public:
      */
     uint16_t getLocalAddress();
 
+#ifdef LM_MBEDOS
+    EventFlags userPacketFlag;
+#define SAMPLE_FLAG2 (1UL << 9)
+#endif
 
 private:
 
@@ -399,6 +403,15 @@ private:
      */
     TaskHandle_t PacketManager_TaskHandle = nullptr;
 
+#else
+    Thread receive_thread;
+    Thread send_hello_packet_thread;
+    Thread process_packets_thread;
+    Thread send_packets_thread;
+    Thread user_function_thread;
+
+    EventFlags receivedPacketFlag;
+    EventFlags processPacketFlag;
 #endif
 
     static void onReceive(void);

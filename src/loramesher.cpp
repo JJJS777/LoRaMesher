@@ -17,11 +17,19 @@ void LoraMesher::init(void (*func)(void*)) {
 }
 
 LoraMesher::~LoraMesher() {
+#ifdef LM_MBEDOS
+    receive_thread.terminate();
+    send_hello_packet_thread.terminate();
+    send_packets_thread.terminate();
+    process_packets.terminate();
+    user_function_thread.terminate();
+#else
     vTaskDelete(ReceivePacket_TaskHandle);
     vTaskDelete(Hello_TaskHandle);
     vTaskDelete(ReceiveData_TaskHandle);
     vTaskDelete(SendData_TaskHandle);
     vTaskDelete(ReceivedUserData_TaskHandle);
+#endif
 
     ReceivedPackets->Clear();
     ToSendPackets->Clear();
@@ -73,6 +81,24 @@ void LoraMesher::initializeLoRa() {
 int helloCounter = 0;
 void LoraMesher::initializeScheduler(void (*func)(void*)) {
     Log.verbose(F("Setting up Schedulers" CR));
+
+#ifdef LM_MBEDOS
+    receive_thread.set_priority(24 + 7); // Priority: normal + 7
+    receive_thread.start(LoraMesher::getInstance().receivingRoutine);
+
+    send_hello_packet_thread.set_priority(24 + 5); // Priority: normal + 7
+    send_hello_packet_thread.start(LoraMesher::getInstance().sendHelloPacket);
+
+    send_packets_thread.set_priority(24 + 4); // Priority: normal + 7
+    send_packets_thread.start(LoraMesher::getInstance().sendPackets);
+
+    process_packets.set_priority(24 + 3); // Priority: normal + 7
+    process_packets.start(LoraMesher::getInstance().processPackets);
+
+    user_function_thread.set_priority(24 + 3); // Priority: normal + 7
+    user_function_thread.start(func);
+
+#elif
     int res = xTaskCreate(
         [](void* o) { static_cast<LoraMesher*>(o)->receivingRoutine(); },
         "Receiving routine",
@@ -94,16 +120,6 @@ void LoraMesher::initializeScheduler(void (*func)(void*)) {
         Log.error(F("Process Task creation gave error: %d" CR), res);
     }
     res = xTaskCreate(
-        [](void* o) { static_cast<LoraMesher*>(o)->processPackets(); },
-        "Process routine",
-        4096,
-        this,
-        3,
-        &ReceiveData_TaskHandle);
-    if (res != pdPASS) {
-        Log.error(F("Process Task creation gave error: %d" CR), res);
-    }
-    res = xTaskCreate(
         [](void* o) { static_cast<LoraMesher*>(o)->sendPackets(); },
         "Sending routine",
         2048,
@@ -112,6 +128,16 @@ void LoraMesher::initializeScheduler(void (*func)(void*)) {
         &SendData_TaskHandle);
     if (res != pdPASS) {
         Log.error(F("Sending Task creation gave error: %d" CR), res);
+    }
+    res = xTaskCreate(
+        [](void* o) { static_cast<LoraMesher*>(o)->processPackets(); },
+        "Process routine",
+        4096,
+        this,
+        3,
+        &ReceiveData_TaskHandle);
+    if (res != pdPASS) {
+        Log.error(F("Process Task creation gave error: %d" CR), res);
     }
     res = xTaskCreate(
         func,
@@ -133,6 +159,7 @@ void LoraMesher::initializeScheduler(void (*func)(void*)) {
     // if (res != pdPASS) {
     //   Log.error(F("Packet Manager Task creation gave error: %d" CR), res);
     // }
+#endif
 }
 
 #if defined(ESP8266) || defined(ESP32)
@@ -188,10 +215,12 @@ void LoraMesher::receivingRoutine() {
                 if (res != 0) {
                     Log.error(F("Reading packet data gave error: %d" CR), res);
                     deletePacket(rx);
-                } else if (snr <= 0) {
+                }
+                else if (snr <= 0) {
                     Log.error(F("Packet with bad SNR, deleting it" CR));
                     deletePacket(rx);
-                } else {
+                }
+                else {
                     //Set the received flag to true
                     receivedFlag = true;
 
@@ -272,7 +301,8 @@ void LoraMesher::sendPackets() {
                 if (nextHop != 0) {
                     ((LoraMesher::dataPacket<uint8_t>*) (tx->packet->payload))->via = nextHop;
 
-                } else {
+                }
+                else {
                     Log.error(F("NextHop Not found from %X, destination %X, via %X" CR), tx->packet->src, tx->packet->dst, nextHop);
                     deletePacketQueueAndPacket(tx);
                     continue;
@@ -325,7 +355,8 @@ void LoraMesher::processPackets() {
                 processRoute((packet<networkNode>*) rx->packet);
                 deletePacketQueueAndPacket(rx);
 
-            } else if (hasDataPacket(type))
+            }
+            else if (hasDataPacket(type))
                 processDataPacket((packetQueue<packet<dataPacket<uint8_t>>>*) rx);
 
             else {
@@ -458,12 +489,14 @@ void LoraMesher::processDataPacket(LoraMesher::packetQueue<packet<dataPacket<uin
         processDataPacketForMe(pq);
         return;
 
-    } else if (packet->dst == BROADCAST_ADDR) {
+    }
+    else if (packet->dst == BROADCAST_ADDR) {
         Log.verbose(F("Data packet from %X BROADCAST" CR), packet->src);
         processDataPacketForMe(pq);
         return;
 
-    } else if (packet->payload->via == localAddress) {
+    }
+    else if (packet->payload->via == localAddress) {
         Log.verbose(F("Data Packet from %X for %X. Via is me" CR), packet->src, packet->dst);
 
         if (hasAddresRoutingTable(packet->dst)) {
@@ -502,11 +535,13 @@ void LoraMesher::processDataPacketForMe(packetQueue<packet<dataPacket<uint8_t>>>
 
         deleteQueuepacket = false;
 
-    } else if ((p->type & ACK_P) == ACK_P) {
+    }
+    else if ((p->type & ACK_P) == ACK_P) {
         Log.verbose(F("ACK Packet received" CR));
         addAck(p->src, cPacket->seq_id, cPacket->number);
 
-    } else if ((p->type & LOST_P) == LOST_P) {
+    }
+    else if ((p->type & LOST_P) == LOST_P) {
         Log.verbose(F("Lost Packet received" CR));
         //Send the packet sequence that has been lost
         if (sendPacketSequence(p->src, cPacket->seq_id, cPacket->number)) {
@@ -514,14 +549,16 @@ void LoraMesher::processDataPacketForMe(packetQueue<packet<dataPacket<uint8_t>>>
             resetTimeout(q_WSP, p->src, cPacket->seq_id);
         }
 
-    } else if ((p->type & SYNC_P) == SYNC_P) {
+    }
+    else if ((p->type & SYNC_P) == SYNC_P) {
         Log.verbose(F("Synchronization Packet received" CR));
         processSyncPacket(p->src, cPacket->seq_id, cPacket->number);
 
         //Change the number to send the ack to the correct one
         cPacket->number = 0;
 
-    } else if ((p->type & XL_DATA_P) == XL_DATA_P) {
+    }
+    else if ((p->type & XL_DATA_P) == XL_DATA_P) {
         Log.verbose(F("Large payload Packet received" CR));
         processLargePayloadPacket(pq);
 
@@ -676,7 +713,8 @@ LoraMesher::packet<uint8_t>* LoraMesher::createPacket(uint8_t* payload, uint8_t 
         //Copy the payload into the packet
         //If has extraSize, we need to add the extraSize to point correctly to the p->payload
         memcpy((void*) ((unsigned long) p->payload + (extraSize)), payload, payloadSize);
-    } else {
+    }
+    else {
         Log.error(F("packet not allocated" CR));
         return nullptr;
     }
@@ -727,7 +765,8 @@ LoraMesher::userPacket<uint8_t>* LoraMesher::createUserPacket(uint16_t dst, uint
     if (p) {
         //Copy the payload into the packet
         memcpy((void*) ((unsigned long) p->payload), payload, payloadSize);
-    } else {
+    }
+    else {
         Log.error(F("User Packet not allocated" CR));
         return nullptr;
     }
