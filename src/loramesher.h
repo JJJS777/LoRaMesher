@@ -13,6 +13,11 @@
 //#define DISABLE_LOGGING
 #include <ArduinoLog.h>
 
+//If need mbed OS
+#if defined(ARDUINO_ARDUINO_NANO33BLE) || defined(ARDUINO_PORTENTA_H7_M7) || defined(ARDUINO_PORTENTA_H7_M4)
+#include "mbed.h"
+#define LM_MBEDOS
+#endif
 
 // LoRa transceiver module pins
 #define SCK 5
@@ -352,6 +357,8 @@ private:
      */
     SX1276* radio;
 
+#ifndef LM_MBEDOS
+
     /**
      * @brief Hello task handle. It will send a hello packet every HELLO_PACKETS_DELAY s
      *
@@ -391,6 +398,8 @@ private:
      *
      */
     TaskHandle_t PacketManager_TaskHandle = nullptr;
+
+#endif
 
     static void onReceive(void);
 

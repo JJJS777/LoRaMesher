@@ -104,6 +104,10 @@ void loop() {
         radio.createPacketAndSend(BROADCAST_ADDR, helloPacket, 1);
 
         //Wait 20 seconds to send the next packet
+#if defined(LM_MBEDOS)
+        thread_sleep_for(20000);
+#elif
         vTaskDelay(20000 / portTICK_PERIOD_MS);
+#endif
     }
 }
