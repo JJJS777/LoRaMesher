@@ -350,8 +350,6 @@ void LoraMesher::processPackets() {
             packetQueue<packet<uint8_t>>* rx = ReceivedPackets->Pop<packet<uint8_t>>();
 
             if (rx != nullptr) {
-                printHeaderPacket(rx->packet, "received");
-
                 uint8_t type = rx->packet->type;
 
                 if ((type & HELLO_P) == HELLO_P) {
@@ -482,24 +480,27 @@ void LoraMesher::sendReliablePacket(uint16_t dst, uint8_t* payload, uint32_t pay
 
 
 void LoraMesher::processDataPacket(LoraMesher::packetQueue<packet<dataPacket<uint8_t>>>* pq) {
-    packet<dataPacket<uint8_t>>* packet = pq->packet;
+    packet<dataPacket<uint8_t>>* dPacket = pq->packet;
 
-    Log.traceln(F("Data packet from %X, destination %X, via %X"), packet->src, packet->dst, packet->payload->via);
+    Log.traceln(F("Data packet from %X, destination %X, via %X"), dPacket->src, dPacket->dst, dPacket->payload->via);
 
-    if (packet->dst == localAddress) {
-        Log.verboseln(F("Data packet from %X for me"), packet->src);
+    if (dPacket->payload->via == localAddress && dPacket->dst == localAddress) {
+        printHeaderPacket((packet<uint8_t>*) dPacket, "received");
+        Log.verboseln(F("Data packet from %X for me"), dPacket->src);
         processDataPacketForMe(pq);
         return;
 
-    } else if (packet->dst == BROADCAST_ADDR) {
-        Log.verboseln(F("Data packet from %X BROADCAST"), packet->src);
+    } else if (dPacket->dst == BROADCAST_ADDR) {
+        printHeaderPacket((packet<uint8_t>*) dPacket, "received");
+        Log.verboseln(F("Data packet from %X BROADCAST"), dPacket->src);
         processDataPacketForMe(pq);
         return;
 
-    } else if (packet->payload->via == localAddress) {
-        Log.verboseln(F("Data Packet from %X for %X. Via is me"), packet->src, packet->dst);
+    } else if (dPacket->payload->via == localAddress) {
+        printHeaderPacket((packet<uint8_t>*) dPacket, "received");
+        Log.verboseln(F("Data Packet from %X for %X. Via is me"), dPacket->src, dPacket->dst);
 
-        if (hasAddressRoutingTable(packet->dst)) {
+        if (hasAddressRoutingTable(dPacket->dst)) {
             Log.verboseln(F("Data Packet forwarding it."));
             ToSendPackets->Add((packetQueue<uint8_t>*) pq);
             return;
@@ -625,6 +626,51 @@ uint16_t LoraMesher::getNextHop(uint16_t dst) {
 }
 
 void LoraMesher::processRoute(LoraMesher::packet<networkNode>* p) {
+    switch (localAddress) {
+        case 0xDE9C:
+            if (p->src != 0xDF34)
+                return;
+            break;
+        case 0xDF34:
+            if (p->src != 0xDE9C || p->src != 0x4E58)
+                return;
+            break;
+        case 0x4E58:
+            if (p->src != 0xDF34 || p->src != 0x5728)
+                return;
+            break;
+        case 0x5728:
+            if (p->src != 0x4E58 || p->src != 0x9234)
+                return;
+            break;
+        case 0x9234:
+            if (p->src != 0x5728 || p->src != 0x56C4)
+                return;
+            break;
+        case 0x56C4:
+            if (p->src != 0x9234 || p->src != 0x62D8)
+                return;
+            break;
+        case 0x62D8:
+            if (p->src != 0x56C4 || p->src != 0x6D4C)
+                return;
+            break;
+        case 0x6D4C:
+            if (p->src != 0x62D8 || p->src != 0x96A0)
+                return;
+            break;
+        case 0x96A0:
+            if (p->src != 0x6D4C || p->src != 0x8C20)
+                return;
+            break;
+        case 0x8C20:
+            if (p->src != 0x96A0)
+                return;
+            break;
+    }
+
+    printHeaderPacket((packet<uint8_t>*) p, "received");
+
     Log.verboseln(F("HELLO packet from %X with size %d"), p->src, p->payloadSize);
     printPacket(p, true);
 
