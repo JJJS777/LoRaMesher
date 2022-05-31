@@ -677,7 +677,7 @@ void LoraMesher::processRoute(LoraMesher::packet<networkNode>* p) {
     LoraMesher::networkNode* receivedNode = new networkNode();
     receivedNode->address = p->src;
     receivedNode->metric = 1;
-    processRoute(localAddress, receivedNode);
+    processRoute(p->src, receivedNode);
     delete receivedNode;
 
     for (size_t i = 0; i < getPayloadLength(p); i++) {
