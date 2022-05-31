@@ -632,35 +632,35 @@ void LoraMesher::processRoute(LoraMesher::packet<networkNode>* p) {
                 return;
             break;
         case 0xDF34:
-            if (p->src != 0xDE9C || p->src != 0x4E58)
+            if (p->src != 0xDE9C && p->src != 0x4E58)
                 return;
             break;
         case 0x4E58:
-            if (p->src != 0xDF34 || p->src != 0x5728)
+            if (p->src != 0xDF34 && p->src != 0x5728)
                 return;
             break;
         case 0x5728:
-            if (p->src != 0x4E58 || p->src != 0x9234)
+            if (p->src != 0x4E58 && p->src != 0x9234)
                 return;
             break;
         case 0x9234:
-            if (p->src != 0x5728 || p->src != 0x56C4)
+            if (p->src != 0x5728 && p->src != 0x56C4)
                 return;
             break;
         case 0x56C4:
-            if (p->src != 0x9234 || p->src != 0x62D8)
+            if (p->src != 0x9234 && p->src != 0x62D8)
                 return;
             break;
         case 0x62D8:
-            if (p->src != 0x56C4 || p->src != 0x6D4C)
+            if (p->src != 0x56C4 && p->src != 0x6D4C)
                 return;
             break;
         case 0x6D4C:
-            if (p->src != 0x62D8 || p->src != 0x96A0)
+            if (p->src != 0x62D8 && p->src != 0x96A0)
                 return;
             break;
         case 0x96A0:
-            if (p->src != 0x6D4C || p->src != 0x8C20)
+            if (p->src != 0x6D4C && p->src != 0x8C20)
                 return;
             break;
         case 0x8C20:
