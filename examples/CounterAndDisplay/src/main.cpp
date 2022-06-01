@@ -4,12 +4,14 @@
 #include "WString.h"
 
 #define BOARD_LED 4
+#define LED_ON LOW
+#define LED_OFF HIGH
 
 LoraMesher& radio = LoraMesher::getInstance();
 
 uint32_t dataCounter = 0;
 struct dataPacket {
-    uint32_t counter[35] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34};
+    uint32_t counter = {0};
 };
 
 dataPacket* helloPacket = new dataPacket;
@@ -23,9 +25,9 @@ dataPacket* helloPacket = new dataPacket;
 void led_Flash(uint16_t flashes, uint16_t delaymS) {
     uint16_t index;
     for (index = 1; index <= flashes; index++) {
-        digitalWrite(BOARD_LED, HIGH);
+        digitalWrite(BOARD_LED, LED_ON);
         vTaskDelay(delaymS / portTICK_PERIOD_MS);
-        digitalWrite(BOARD_LED, LOW);
+        digitalWrite(BOARD_LED, LED_OFF);
         vTaskDelay(delaymS / portTICK_PERIOD_MS);
     }
 }
@@ -37,10 +39,10 @@ void led_Flash(uint16_t flashes, uint16_t delaymS) {
  */
 void printPacket(dataPacket* data, uint16_t sourceAddress) {
     char text[32];
-    snprintf(text, 32, ("%X-> %d" CR), sourceAddress, data->counter[0]);
+    snprintf(text, 32, ("%X-> %d" CR), sourceAddress, data->counter);
 
     Screen.changeLineThree(String(text));
-    Log.verbose(F("Received data nº %d" CR), data->counter[0]);
+    Log.verbose(F("Received data nº %d" CR), data->counter);
 }
 
 /**
@@ -63,11 +65,7 @@ void printDataPacket(LoraMesher::userPacket<dataPacket>* packet) {
     for (size_t i = 0; i < payloadLength; i++) {
         Log.verbose(F("Received data nº %d" CR), i);
         Log.verbose(F("%d -- "), i);
-
-        for (size_t j = 0; j < 35; j++) {
-            Log.verbose(F("%d, "), dPacket[i].counter[j]);
-
-        }
+        Log.verbose(F("%d, "), dPacket[i].counter);
         Log.verbose(F("" CR));
     }
 
@@ -89,7 +87,7 @@ void processReceivedPackets(void*) {
         //Iterate through all the packets inside the Received User Packets FiFo
         while (radio.getReceivedQueueSize() > 0) {
             Log.trace(F("ReceivedUserData_TaskHandle notify received" CR));
-            Log.trace(F("Fifo receiveUserData size: %d" CR), radio.getReceivedQueueSize() > 0);
+            Log.trace(F("Queue receiveUserData size: %d" CR), radio.getReceivedQueueSize() > 0);
 
             //Get the first element inside the Received User Packets FiFo
             LoraMesher::userPacket<dataPacket>* packet = radio.getNextUserPacket<dataPacket>();
@@ -105,7 +103,7 @@ void processReceivedPackets(void*) {
 }
 
 /**
- * @brief Initialize the LoRa Mesher
+ * @brief Initialize the LoRaMesher
  *
  */
 void setupLoraMesher() {
@@ -145,37 +143,37 @@ void printRoutingTableToDisplay() {
  *
  */
 void sendLoRaMessage(void*) {
-    int dataTablePosition = 0;
+    uint16_t dstAddr = 0x8C20;
+    bool addrInDataTable = false;
 
     for (;;) {
-        if (radio.routingTableSize() == 0) {
-            vTaskDelay(20000 / portTICK_PERIOD_MS);
-            continue;
+
+        //Search if the dstAddress is inside the routing table
+        for (int i = 0; i < radio.routingTableSize() && !addrInDataTable; i++) {
+            LoraMesher::routableNode node = radio.routingTable[i];
+
+            if (node.networkNode.address == dstAddr)
+                addrInDataTable = true;
         }
 
-        if (radio.routingTableSize() <= dataTablePosition)
-            dataTablePosition = 0;
+        if (addrInDataTable) {
+            Log.trace(F("Send data packet nº %d to %X" CR), dataCounter, dstAddr);
 
-        uint16_t addr = radio.routingTable[dataTablePosition].networkNode.address;
+            //Create packet and send it.
+            radio.createPacketAndSend(dstAddr, helloPacket, 1);
 
-        Log.trace(F("Send data packet nº %d to %X (%d)" CR), dataCounter, addr, dataTablePosition);
+            //Print second line in the screen
+            Screen.changeLineTwo("Send " + String(dataCounter));
 
-        dataTablePosition++;
-
-        //Create packet and send it.
-        radio.createPacketAndSend(addr, helloPacket, 1);
-
-        //Print second line in the screen
-        Screen.changeLineTwo("Send " + String(dataCounter));
-
-        //Increment data counter
-        helloPacket->counter[0] = dataCounter++;
+            //Increment data counter
+            helloPacket->counter = dataCounter++;
+        }
 
         //Print routing Table to Display
         printRoutingTableToDisplay();
 
-        //Wait 20 seconds to send the next packet
-        vTaskDelay(20000 / portTICK_PERIOD_MS);
+        //Wait 120 seconds to send the next packet
+        vTaskDelay(120000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -205,11 +203,12 @@ void setup() {
     Screen.initDisplay();
     Log.verbose("Board Init" CR);
 
-
     led_Flash(2, 125);          //two quick LED flashes to indicate program start
     setupLoraMesher();
     printAddressDisplay();
-    createSendMessages();
+
+    if (radio.getLocalAddress() == 0xDE9C)
+        createSendMessages();
 }
 
 void loop() {

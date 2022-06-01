@@ -6,6 +6,10 @@
 
 The LoRaMesher library implements a distance-vector routing protocol for communicating messages among LoRa nodes. For the interaction with the LoRa radio chip, we leverage RadioLib, a versatile communication library which supports the SX127X LoRa series module available on the hardware we used, among others.
 
+## Topology
+With this code and using the CounterAndDisplay example, we have a topology as the Figure bellow.
+![Topology](10hoptopoloy.drawio.png)
+
 ## Dependencies
 
 You can check `library.json` for more details. Basically, we use a modded version of [Radiolib](https://github.com/jgromes/RadioLib) that supports class methods as callbacks and [FreeRTOS](https://freertos.org/index.html) for scheduling maintenance tasks.
