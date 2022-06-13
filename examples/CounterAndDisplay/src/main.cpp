@@ -14,7 +14,7 @@ struct dataPacket {
     uint32_t counter = {0};
 };
 
-dataPacket* helloPacket = new dataPacket;
+dataPacket* helloPacket = new dataPacket[55];
 
 /**
  * @brief Flash the lead
@@ -143,31 +143,60 @@ void printRoutingTableToDisplay() {
  *
  */
 void sendLoRaMessage(void*) {
-    uint16_t dstAddr = 0x8C20;
-    bool addrInDataTable = false;
+    uint16_t dstAddr[5] = {0xDE9C, 0xDF34, 0x4E58, 0x96A0, 0x8C20};
+    int dstAddressPosition = 0;
+    int numOfSend = 0;
+    int sendNumBytes = 1;
 
     for (;;) {
+        bool addrInDataTable = false;
+
+        if (dstAddr[dstAddressPosition] == radio.getLocalAddress()) {
+            if (dstAddressPosition == 5)
+                dstAddressPosition = 0;
+            else
+                dstAddressPosition++;
+        }
 
         //Search if the dstAddress is inside the routing table
         for (int i = 0; i < radio.routingTableSize() && !addrInDataTable; i++) {
             LoraMesher::routableNode node = radio.routingTable[i];
 
-            if (node.networkNode.address == dstAddr)
+            if (node.networkNode.address == dstAddr[dstAddressPosition])
                 addrInDataTable = true;
         }
 
         if (addrInDataTable) {
-            Log.trace(F("Send data packet nº %d to %X" CR), dataCounter, dstAddr);
+
+            Log.trace(F("Send data packet nº %d to %X" CR), dataCounter, dstAddr[dstAddressPosition]);
 
             //Create packet and send it.
-            radio.createPacketAndSend(dstAddr, helloPacket, 1);
+            radio.createPacketAndSend(dstAddr[dstAddressPosition], helloPacket, sendNumBytes);
 
             //Print second line in the screen
             Screen.changeLineTwo("Send " + String(dataCounter));
 
             //Increment data counter
             helloPacket->counter = dataCounter++;
+
+            numOfSend++;
+
+            if (numOfSend == 30) {
+                numOfSend = 0;
+                if (sendNumBytes == 1) {
+                    sendNumBytes = 26;
+                } else if (sendNumBytes == 26) {
+                    sendNumBytes = 53;
+                } else
+                    vTaskDelete(NULL);
+
+            }
         }
+
+        dstAddressPosition++;
+
+        if (dstAddressPosition == 6)
+            dstAddressPosition = 0;
 
         //Print routing Table to Display
         printRoutingTableToDisplay();
@@ -207,7 +236,10 @@ void setup() {
     setupLoraMesher();
     printAddressDisplay();
 
-    if (radio.getLocalAddress() == 0xDE9C)
+    uint16_t localAddress = radio.getLocalAddress();
+
+    if (localAddress == 0xDE9C || localAddress == 0xDF34 || localAddress == 0x4E58
+        || localAddress == 0x96A0 || localAddress == 0x8C20)
         createSendMessages();
 }
 
