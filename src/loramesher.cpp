@@ -626,7 +626,7 @@ uint16_t LoraMesher::getNextHop(uint16_t dst) {
 
 void LoraMesher::processRoute(LoraMesher::packet<networkNode>* p) {
     switch (localAddress) {
-        case 0xDE9C:
+        case 0x63AC:
             if (p->src != 0x5728)
                 return;
             break;
@@ -639,7 +639,7 @@ void LoraMesher::processRoute(LoraMesher::packet<networkNode>* p) {
                 return;
             break;
         case 0x5728:
-            if (p->src != 0xDE9C && p->src != 0xDF34 && p->src != 0x56C4)
+            if (p->src != 0x63AC && p->src != 0xDF34 && p->src != 0x56C4)
                 return;
             break;
         case 0x9234:
