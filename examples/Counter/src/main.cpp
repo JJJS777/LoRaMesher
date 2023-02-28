@@ -72,11 +72,19 @@ void printDataPacket(AppPacket<dataPacket> *packet)
  */
 void processReceivedPackets(void *)
 {
+    Serial.println("--> called processReceivedPackets()");
     for (;;)
     {
+        Serial.println("--> entered for(;;) in called processReceivedPackets()");
+
         /* Wait for the notification of processReceivedPackets and enter blocking */
-        ulTaskNotifyTake(pdPASS, portMAX_DELAY);
-        led_Flash(1, 100); // one quick LED flashes to indicate a packet has arrived
+        ulTaskNotifyTake(pdPASS, portMAX_DELAY); //<- liegt hier der fehler??
+        led_Flash(1, 100);                       // one quick LED flashes to indicate a packet has arrived
+
+        if (radio.getReceivedQueueSize() == 0)
+        {
+            Log.traceln(F("--> getReceivedQueueSize() is empty"));
+        }
 
         // Iterate through all the packets inside the Received User Packets FiFo
         while (radio.getReceivedQueueSize() > 0)
@@ -86,6 +94,8 @@ void processReceivedPackets(void *)
 
             // Get the first element inside the Received User Packets FiFo
             AppPacket<dataPacket> *packet = radio.getNextAppPacket<dataPacket>();
+
+            Serial.println("--> called printDataPacket(packet) in called processReceivedPackets");
 
             // Print the data packet
             printDataPacket(packet);
